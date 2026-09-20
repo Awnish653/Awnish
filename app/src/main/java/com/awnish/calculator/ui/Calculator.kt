@@ -3,17 +3,23 @@ package com.awnish.calculator.ui
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
@@ -70,8 +76,8 @@ fun CalculatorScreen(passwordHash: String, onVaultUnlock: () -> Unit, onChangePa
         listOf("x²", "xʸ", "!", "π")
     )
     val numberKeys = listOf(
-        listOf("C", "⌫", "(", ")", "%", "÷"),
-        listOf("7", "8", "9", "×"),
+        listOf("C", "(", ")", "%"),
+        listOf("7", "8", "9", "×",),
         listOf("4", "5", "6", "−"),
         listOf("1", "2", "3", "+"),
         listOf("±", "0", ".", "=")
