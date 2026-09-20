@@ -3,4 +3,7 @@
     <files-path
         name="private_vault"
         path="private_gallery/" />
+    <cache-path
+        name="vault_open"
+        path="vault_open/" />
 </paths>
