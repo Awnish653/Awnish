@@ -1,11 +1,13 @@
 package com.awnish.calculator.ui
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.PickVisualMediaRequest
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -188,6 +190,17 @@ private fun VaultScreen(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
         receiveSelectedUris(uris)
+    }
+
+    val deleteOriginalLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            info = "Original selected media removed from Gallery."
+            error = null
+        } else {
+            info = "Encrypted copy is safe, but the original media was not removed."
+        }
     }
 
     LaunchedEffect(incomingUris) {
@@ -382,20 +395,36 @@ private fun VaultScreen(
                         var failed = 0
 
                         uris.forEach { uri ->
-                            runCatching { repo.import(uri, removeOriginal = true) }
-                                .onSuccess { removed ->
-                                    if (removed) moved++ else copiedOnly++
-                                }
+                            runCatching { repo.import(uri, removeOriginal = false) }
+                                .onSuccess { moved++ }
                                 .onFailure { failed++ }
                         }
 
-                        info = buildString {
-                            if (moved > 0) append(moved.toString() + " moved securely. ")
-                            if (copiedOnly > 0) append(copiedOnly.toString() + " encrypted copy/copies created; original could not be removed. ")
-                            if (failed > 0) append(failed.toString() + " file(s) failed.")
-                        }.trim()
+                        info = if (moved > 0) {
+                            moved.toString() + " encrypted copy/copies created."
+                        } else {
+                            "Nothing was imported."
+                        }
 
-                        if (failed > 0) error = "Some files could not be imported."
+                        if (failed > 0) {
+                            error = failed.toString() + " file(s) could not be imported."
+                        }
+
+                        if (failed == 0 && moved > 0) {
+                            runCatching { repo.requestOriginalDeletion(uris) }
+                                .onSuccess { intentSender ->
+                                    if (intentSender != null) {
+                                        deleteOriginalLauncher.launch(
+                                            IntentSenderRequest.Builder(intentSender).build()
+                                        )
+                                    } else {
+                                        info = moved.toString() + " file(s) moved into the private vault."
+                                    }
+                                }
+                                .onFailure {
+                                    info = moved.toString() + " encrypted copy/copies created, but Android did not allow removing the originals."
+                                }
+                        }
                     }
                 }) { Text("Move & Encrypt") }
             },
