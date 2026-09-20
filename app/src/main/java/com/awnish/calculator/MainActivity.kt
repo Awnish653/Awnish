@@ -1,6 +1,8 @@
 package com.awnish.calculator
 
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color as AndroidColor
 import android.net.Uri
 import android.os.Bundle
@@ -29,6 +31,8 @@ class MainActivity : FragmentActivity() {
                     AwnishApp(
                         activity = this,
                         incomingUris = sharedUris.toList(),
+                        launcherIconVisible = isLauncherIconVisible(),
+                        onSetLauncherIconVisible = { visible -> setLauncherIconVisible(visible) },
                         onIncomingUrisConsumed = { sharedUris.clear() }
                     )
                 }
@@ -56,6 +60,25 @@ class MainActivity : FragmentActivity() {
                 intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.toList() ?: emptyList()
             }
             else -> emptyList()
+        }
+    }
+
+    private fun isLauncherIconVisible(): Boolean {
+        val component = ComponentName(this, MainActivity::class.java)
+        return packageManager.getComponentEnabledSetting(component) !=
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+    }
+
+    fun setLauncherIconVisible(visible: Boolean) {
+        val component = ComponentName(this, MainActivity::class.java)
+        packageManager.setComponentEnabledSetting(
+            component,
+            if (visible) PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+            else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+            PackageManager.DONT_KILL_APP
+        )
+        if (!visible) {
+            finishAndRemoveTask()
         }
     }
 
