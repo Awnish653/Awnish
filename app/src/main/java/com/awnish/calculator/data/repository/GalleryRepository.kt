@@ -1,6 +1,8 @@
 package com.awnish.calculator.data.repository
 
+import android.app.PendingIntent
 import android.content.Context
+import android.content.IntentSender
 import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
@@ -34,7 +36,7 @@ class GalleryRepository(private val context: Context) {
     fun photos(query: String, category: String = "All"): Flow<List<PhotoEntity>> =
         dao.observe(query, category)
 
-    suspend fun import(uri: Uri, removeOriginal: Boolean = true) = withContext(Dispatchers.IO) {
+    suspend fun import(uri: Uri, removeOriginal: Boolean = false) = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
         val name = resolver.query(
             uri,
@@ -83,11 +85,10 @@ class GalleryRepository(private val context: Context) {
                 )
             )
 
-            var originalRemoved = false
             if (removeOriginal) {
-                originalRemoved = runCatching { deleteOriginal(uri) }.getOrDefault(false)
+                deleteOriginalDirect(uri)
             }
-            originalRemoved
+            true
         } catch (e: Exception) {
             file.delete()
             throw e
@@ -171,6 +172,34 @@ class GalleryRepository(private val context: Context) {
             dao.delete(item)
         }
 
+    suspend fun requestOriginalDeletion(uris: List<Uri>): IntentSender? =
+        withContext(Dispatchers.IO) {
+            if (uris.isEmpty()) return@withContext null
+            val resolver = context.contentResolver
+            val mediaUris = mutableListOf<Uri>()
+
+            uris.forEach { uri ->
+                when {
+                    DocumentsContract.isDocumentUri(context, uri) -> {
+                        runCatching { DocumentsContract.deleteDocument(resolver, uri) }
+                    }
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                        uri.authority == MediaStore.AUTHORITY -> {
+                        mediaUris += uri
+                    }
+                    else -> {
+                        runCatching { resolver.delete(uri, null, null) }
+                    }
+                }
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && mediaUris.isNotEmpty()) {
+                MediaStore.createDeleteRequest(resolver, mediaUris).intentSender
+            } else {
+                null
+            }
+        }
+
     private fun cleanupOpenCache() {
         val cutoff = System.currentTimeMillis() - 10 * 60 * 1000L
         openDirectory.listFiles()?.forEach { file ->
@@ -178,7 +207,7 @@ class GalleryRepository(private val context: Context) {
         }
     }
 
-    private fun deleteOriginal(uri: Uri): Boolean {
+    private fun deleteOriginalDirect(uri: Uri): Boolean {
         return runCatching {
             if (DocumentsContract.isDocumentUri(context, uri)) {
                 DocumentsContract.deleteDocument(context.contentResolver, uri)
