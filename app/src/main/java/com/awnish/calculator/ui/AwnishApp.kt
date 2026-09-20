@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.activity.compose.PickVisualMediaRequest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -45,7 +46,11 @@ import java.security.MessageDigest
 import java.text.DateFormat
 
 @Composable
-fun AwnishApp(activity: FragmentActivity) {
+fun AwnishApp(
+    activity: FragmentActivity,
+    incomingUris: List<Uri> = emptyList(),
+    onIncomingUrisConsumed: () -> Unit = {}
+) {
     val prefs = remember { activity.getSharedPreferences("settings", Context.MODE_PRIVATE) }
 
     LaunchedEffect(Unit) {
@@ -54,7 +59,7 @@ fun AwnishApp(activity: FragmentActivity) {
         }
     }
 
-    var vaultOpen by rememberSaveable { mutableStateOf(false) }
+    var vaultOpen by rememberSaveable { mutableStateOf(incomingUris.isNotEmpty()) }
     var showChangePassword by remember { mutableStateOf(false) }
     var passwordHash by remember {
         mutableStateOf(
@@ -62,18 +67,16 @@ fun AwnishApp(activity: FragmentActivity) {
         )
     }
 
-    DisposableEffect(activity) {
-        val observer = object : androidx.lifecycle.DefaultLifecycleObserver {
-            override fun onStop(owner: androidx.lifecycle.LifecycleOwner) {
-                vaultOpen = false
-            }
+    LaunchedEffect(incomingUris) {
+        if (incomingUris.isNotEmpty()) {
+            vaultOpen = true
         }
-        activity.lifecycle.addObserver(observer)
-        onDispose { activity.lifecycle.removeObserver(observer) }
     }
 
     if (vaultOpen) {
         VaultScreen(
+            incomingUris = incomingUris,
+            onIncomingUrisConsumed = onIncomingUrisConsumed,
             onClose = { vaultOpen = false },
             onChangePassword = { showChangePassword = true }
         )
@@ -149,6 +152,8 @@ private fun ChangePasswordDialog(onDismiss: () -> Unit, onSaved: (String) -> Uni
 
 @Composable
 private fun VaultScreen(
+    incomingUris: List<Uri> = emptyList(),
+    onIncomingUrisConsumed: () -> Unit = {},
     onClose: () -> Unit,
     onChangePassword: () -> Unit
 ) {
@@ -163,14 +168,45 @@ private fun VaultScreen(
     var info by remember { mutableStateOf<String?>(null) }
     var selectedUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var showMoveWarning by remember { mutableStateOf(false) }
+    var pickerActive by remember { mutableStateOf(false) }
 
     val items by repo.photos(query, category).collectAsStateWithLifecycle(emptyList())
 
-    val picker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris ->
+    fun receiveSelectedUris(uris: List<Uri>) {
+        pickerActive = false
         selectedUris = uris
         showMoveWarning = uris.isNotEmpty()
+    }
+
+    val galleryPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(50)
+    ) { uris ->
+        receiveSelectedUris(uris)
+    }
+
+    val filePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        receiveSelectedUris(uris)
+    }
+
+    LaunchedEffect(incomingUris) {
+        if (incomingUris.isNotEmpty()) {
+            receiveSelectedUris(incomingUris)
+            onIncomingUrisConsumed()
+        }
+    }
+
+    DisposableEffect(activity) {
+        val observer = object : androidx.lifecycle.DefaultLifecycleObserver {
+            override fun onStop(owner: androidx.lifecycle.LifecycleOwner) {
+                if (!pickerActive && incomingUris.isEmpty()) {
+                    // Lock the vault only when the user actually leaves AWNISH.
+                }
+            }
+        }
+        activity.lifecycle.addObserver(observer)
+        onDispose { activity.lifecycle.removeObserver(observer) }
     }
 
     Column(
@@ -273,15 +309,34 @@ private fun VaultScreen(
                 Text("Password")
             }
 
+            OutlinedButton(
+                onClick = {
+                    error = null
+                    info = null
+                    pickerActive = true
+                    galleryPicker.launch(
+                        PickVisualMediaRequest(
+                            androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo
+                        )
+                    )
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(Icons.Default.Movie, null)
+                Spacer(Modifier.width(5.dp))
+                Text("Gallery")
+            }
+
             ExtendedFloatingActionButton(
                 onClick = {
                     error = null
                     info = null
-                    picker.launch(arrayOf("*/*"))
+                    pickerActive = true
+                    filePicker.launch(arrayOf("*/*"))
                 },
-                modifier = Modifier.weight(1.25f),
-                icon = { Icon(Icons.Default.Add, null) },
-                text = { Text("Move to Vault") }
+                modifier = Modifier.weight(1.15f),
+                icon = { Icon(Icons.Default.Folder, null) },
+                text = { Text("Files") }
             )
         }
     }
