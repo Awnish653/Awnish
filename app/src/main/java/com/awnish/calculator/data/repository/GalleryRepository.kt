@@ -16,7 +16,7 @@ class GalleryRepository(private val context: Context) {
     private val cipher = GalleryCipher(); private val directory = File(context.filesDir, "private_gallery").apply { mkdirs() }
     fun photos(query: String): Flow<List<PhotoEntity>> = dao.observe(query)
     suspend fun import(uri: Uri, album: String = "All photos") = withContext(Dispatchers.IO) {
-        val resolver = context.contentResolver; val name = resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { if (it.moveToFirst()) it.getString(0) } ?: "Private image"
+        val resolver = context.contentResolver; val name: String = resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null } ?: "Private image"
         val type = resolver.getType(uri) ?: "image/*"; require(type.startsWith("image/")) { "Choose an image file" }
         val raw = resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Unable to read selected image")
         val id = UUID.randomUUID().toString(); val file = File(directory, "$id.awn")
