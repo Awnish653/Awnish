@@ -24,7 +24,11 @@ import java.util.Stack
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun CalculatorScreen() {
+fun CalculatorScreen(
+    passwordHash: String,
+    onVaultUnlock: () -> Unit,
+    onChangePassword: () -> Unit
+) {
     var expression by rememberSaveable { mutableStateOf("") }
     var result by rememberSaveable { mutableStateOf("0") }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
@@ -35,10 +39,43 @@ fun CalculatorScreen() {
     fun input(value: String) {
         error = null
         val operators = listOf("+", "−", "×", "÷")
-        expression = if (value in operators && expression.isNotBlank() && expression.last().toString() in operators) {
+        expression = if (
+            value in operators &&
+            expression.isNotBlank() &&
+            expression.last().toString() in operators
+        ) {
             expression.dropLast(1) + value
         } else {
             expression + value
+        }
+    }
+
+    fun handleEquals() {
+        val trimmed = expression.trim()
+
+        if (trimmed.isNotEmpty() && sha256(trimmed) == passwordHash) {
+            expression = ""
+            result = "0"
+            error = null
+            onVaultUnlock()
+            return
+        }
+
+        if (trimmed == "1234+1234" || trimmed == "1234 + 1234") {
+            expression = ""
+            result = "0"
+            error = null
+            onChangePassword()
+            return
+        }
+
+        try {
+            val evaluated = evaluate(expression)
+            result = evaluated
+            history = (listOf("$expression = $evaluated") + history).take(50)
+            error = null
+        } catch (exception: Exception) {
+            error = exception.message ?: "Invalid expression"
         }
     }
 
@@ -47,7 +84,11 @@ fun CalculatorScreen() {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Calculator", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text(
+                "Calculator",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f)
+            )
             TextButton(onClick = { historyOpen = !historyOpen }) { Text("History") }
         }
 
@@ -56,21 +97,41 @@ fun CalculatorScreen() {
                 items(history) { item ->
                     Text(
                         text = item,
-                        modifier = Modifier.fillMaxWidth().combinedClickable(
-                            onClick = { expression = item.substringBefore(" = ") },
-                            onLongClick = { clip.setText(AnnotatedString(item)) }
-                        ).padding(8.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = { expression = item.substringBefore(" = ") },
+                                onLongClick = { clip.setText(AnnotatedString(item)) }
+                            )
+                            .padding(8.dp)
                     )
                 }
             }
         }
 
-        Text(text = expression.ifEmpty { " " }, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End,
-            style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            text = expression.ifEmpty { " " },
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.End,
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            AnimatedContent(targetState = result, modifier = Modifier.weight(1f), label = "result") { value ->
-                Text(text = value, textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.displayMedium)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            AnimatedContent(
+                targetState = result,
+                modifier = Modifier.weight(1f),
+                label = "result"
+            ) { value ->
+                Text(
+                    text = value,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.displayMedium
+                )
             }
             IconButton(onClick = { clip.setText(AnnotatedString(result)) }) {
                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy result")
@@ -78,7 +139,12 @@ fun CalculatorScreen() {
         }
 
         error?.let { message ->
-            Text(text = message, color = MaterialTheme.colorScheme.error, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End)
+            Text(
+                text = message,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.End
+            )
         }
 
         val keys = listOf(
@@ -90,37 +156,52 @@ fun CalculatorScreen() {
         )
 
         keys.forEach { row ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 row.forEach { key ->
                     val prominent = key == "="
                     FilledTonalButton(
                         onClick = {
                             when (key) {
-                                "C" -> { expression = ""; result = "0"; error = null }
-                                "⌫" -> { expression = expression.dropLast(1); error = null }
-                                "±" -> { expression = if (expression.startsWith("-")) expression.drop(1) else "-$expression"; error = null }
-                                "%" -> input("÷100")
-                                "=" -> {
-                                    try {
-                                        val evaluated = evaluate(expression)
-                                        result = evaluated
-                                        history = (listOf("$expression = $evaluated") + history).take(50)
-                                        error = null
-                                    } catch (exception: Exception) {
-                                        error = exception.message ?: "Invalid expression"
-                                    }
+                                "C" -> {
+                                    expression = ""
+                                    result = "0"
+                                    error = null
                                 }
+                                "⌫" -> {
+                                    expression = expression.dropLast(1)
+                                    error = null
+                                }
+                                "±" -> {
+                                    expression = if (expression.startsWith("-")) {
+                                        expression.drop(1)
+                                    } else {
+                                        "-$expression"
+                                    }
+                                    error = null
+                                }
+                                "%" -> input("÷100")
+                                "=" -> handleEquals()
                                 else -> input(key)
                             }
                         },
                         modifier = Modifier.weight(1f).height(62.dp),
-                        colors = if (prominent) ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        ) else ButtonDefaults.filledTonalButtonColors()
+                        colors = if (prominent) {
+                            ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            ButtonDefaults.filledTonalButtonColors()
+                        }
                     ) {
-                        if (key == "⌫") Icon(Icons.Default.Backspace, contentDescription = "Backspace")
-                        else Text(key, style = MaterialTheme.typography.titleLarge)
+                        if (key == "⌫") {
+                            Icon(Icons.Default.Backspace, contentDescription = "Backspace")
+                        } else {
+                            Text(key, style = MaterialTheme.typography.titleLarge)
+                        }
                     }
                 }
             }
@@ -128,42 +209,70 @@ fun CalculatorScreen() {
     }
 }
 
+private fun sha256(value: String): String {
+    val digest = java.security.MessageDigest.getInstance("SHA-256")
+    return digest.digest(value.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
+}
+
 private fun evaluate(input: String): String {
     if (input.isBlank()) return "0"
     val normalized = input.replace('×', '*').replace('÷', '/').replace('−', '-')
-    val tokens = Regex("-?\\d+(?:\\.\\d+)?|[+*/-]").findAll(normalized).map { it.value }.toList()
+    val tokens = Regex("-?\\d+(?:\\.\\d+)?|[+*/-]")
+        .findAll(normalized)
+        .map { it.value }
+        .toList()
     if (tokens.isEmpty()) error("Invalid expression")
 
     val operators = Stack<String>()
     val output = mutableListOf<String>()
-    fun precedence(operator: String): Int = if (operator == "*" || operator == "/") 2 else 1
+
+    fun precedence(operator: String): Int =
+        if (operator == "*" || operator == "/") 2 else 1
 
     tokens.forEach { token ->
-        if (token.first().isDigit() || (token.length > 1 && token[0] == '-')) output += token
-        else {
-            while (operators.isNotEmpty() && precedence(operators.peek()) >= precedence(token)) output += operators.pop()
+        if (token.first().isDigit() ||
+            (token.length > 1 && token[0] == '-')
+        ) {
+            output += token
+        } else {
+            while (
+                operators.isNotEmpty() &&
+                precedence(operators.peek()) >= precedence(token)
+            ) {
+                output += operators.pop()
+            }
             operators.push(token)
         }
     }
+
     while (operators.isNotEmpty()) output += operators.pop()
 
     val numbers = Stack<BigDecimal>()
     output.forEach { token ->
-        if (token.first().isDigit() || (token.length > 1 && token[0] == '-')) numbers.push(BigDecimal(token))
-        else {
+        if (token.first().isDigit() ||
+            (token.length > 1 && token[0] == '-')
+        ) {
+            numbers.push(BigDecimal(token))
+        } else {
             val b = numbers.pop()
             val a = numbers.pop()
-            numbers.push(when (token) {
-                "+" -> a + b
-                "-" -> a - b
-                "*" -> a * b
-                "/" -> {
-                    if (b.compareTo(BigDecimal.ZERO) == 0) error("Cannot divide by zero")
-                    a.divide(b, MathContext.DECIMAL64)
+            numbers.push(
+                when (token) {
+                    "+" -> a + b
+                    "-" -> a - b
+                    "*" -> a * b
+                    "/" -> {
+                        if (b.compareTo(BigDecimal.ZERO) == 0) {
+                            error("Cannot divide by zero")
+                        }
+                        a.divide(b, MathContext.DECIMAL64)
+                    }
+                    else -> error("Invalid")
                 }
-                else -> error("Invalid")
-            })
+            )
         }
     }
+
     return numbers.pop().stripTrailingZeros().toPlainString()
 }
