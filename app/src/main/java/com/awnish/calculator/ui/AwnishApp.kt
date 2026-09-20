@@ -464,14 +464,18 @@ private fun VaultItemDialog(
         confirmButton = {
             if (item.category != "Apps & Games") {
                 TextButton(onClick = {
-                    val uri = repo.fileUri(item)
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        setDataAndType(uri, item.mimeType)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    scope.launch {
+                        runCatching {
+                            val uri = repo.prepareOpenUri(item)
+                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(uri, item.mimeType)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(intent)
+                        }
+                            .onSuccess { onMessage("Opened " + item.displayName) }
+                            .onFailure { onError("No compatible app found to open this file.") }
                     }
-                    runCatching { context.startActivity(intent) }
-                        .onSuccess { onMessage("Opened " + item.displayName) }
-                        .onFailure { onError("No compatible app found to open this file.") }
                 }) {
                     Icon(Icons.Default.OpenInNew, null)
                     Spacer(Modifier.width(4.dp))
