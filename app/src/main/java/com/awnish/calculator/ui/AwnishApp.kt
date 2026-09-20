@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Search
@@ -51,7 +52,9 @@ import java.text.DateFormat
 fun AwnishApp(
     activity: FragmentActivity,
     incomingUris: List<Uri> = emptyList(),
-    onIncomingUrisConsumed: () -> Unit = {}
+    onIncomingUrisConsumed: () -> Unit = {},
+    launcherIconVisible: Boolean = true,
+    onSetLauncherIconVisible: (Boolean) -> Unit = {}
 ) {
     val prefs = remember { activity.getSharedPreferences("settings", Context.MODE_PRIVATE) }
 
@@ -86,7 +89,9 @@ fun AwnishApp(
         CalculatorScreen(
             passwordHash = passwordHash,
             onVaultUnlock = { vaultOpen = true },
-            onChangePassword = { showChangePassword = true }
+            onChangePassword = { showChangePassword = true },
+            launcherIconVisible = launcherIconVisible,
+            onSetLauncherIconVisible = onSetLauncherIconVisible
         )
     }
 
@@ -189,7 +194,27 @@ private fun VaultScreen(
     val filePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
-        receiveSelectedUris(uris)
+        receiveSelectedUris(uris, removeOriginals = true)
+    }
+
+    val folderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { treeUri ->
+        if (treeUri == null) {
+            pickerActive = false
+            info = "No folder selected."
+        } else {
+            scope.launch {
+                val uris = runCatching { repo.collectTreeFiles(treeUri) }.getOrElse {
+                    error = it.message ?: "Could not read selected folder."
+                    emptyList()
+                }
+                receiveSelectedUris(uris, removeOriginals = false)
+                if (uris.isNotEmpty()) {
+                    info = "Found " + uris.size + " file(s) in the selected folder. Nothing will be deleted from the folder."
+                }
+            }
+        }
     }
 
     val deleteOriginalLauncher = rememberLauncherForActivityResult(
@@ -209,18 +234,6 @@ private fun VaultScreen(
             receiveSelectedUris(incomingUris)
             onIncomingUrisConsumed()
         }
-    }
-
-    DisposableEffect(activity) {
-        val observer = object : androidx.lifecycle.DefaultLifecycleObserver {
-            override fun onStop(owner: androidx.lifecycle.LifecycleOwner) {
-                if (!pickerActive) {
-                    onClose()
-                }
-            }
-        }
-        activity.lifecycle.addObserver(observer)
-        onDispose { activity.lifecycle.removeObserver(observer) }
     }
 
     Column(
@@ -341,6 +354,20 @@ private fun VaultScreen(
                 Text("Gallery")
             }
 
+            OutlinedButton(
+                onClick = {
+                    error = null
+                    info = null
+                    pickerActive = true
+                    folderPicker.launch(null)
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(Icons.Default.Folder, null)
+                Spacer(Modifier.width(5.dp))
+                Text("Folder")
+            }
+
             ExtendedFloatingActionButton(
                 onClick = {
                     error = null
@@ -349,7 +376,7 @@ private fun VaultScreen(
                     filePicker.launch(arrayOf("*/*"))
                 },
                 modifier = Modifier.weight(1.15f),
-                icon = { Icon(Icons.Default.Folder, null) },
+                icon = { Icon(Icons.Default.Description, null) },
                 text = { Text("Files") }
             )
         }
@@ -380,14 +407,20 @@ private fun VaultScreen(
             title = { Text("Move selected files?") },
             text = {
                 Text(
-                    "AWNISH first creates an encrypted copy inside the private vault. " +
-                        "After the copy succeeds, it asks Android to remove the original. " +
-                        "If the source provider does not allow deletion, the encrypted copy is kept and the original remains."
+                    if (removeOriginalsAfterImport) {
+                        "AWNISH first creates an encrypted copy inside the private vault. " +
+                            "After the copy succeeds, it asks Android to remove the original. " +
+                            "If the source provider does not allow deletion, the encrypted copy is kept and the original remains."
+                    } else {
+                        "AWNISH will copy the selected folder files into the encrypted private vault. " +
+                            "The original files in the folder will not be deleted."
+                    }
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     val uris = selectedUris
+                    val removeOriginals = removeOriginalsAfterImport
                     showMoveWarning = false
                     selectedUris = emptyList()
                     scope.launch {
@@ -411,7 +444,7 @@ private fun VaultScreen(
                             error = failed.toString() + " file(s) could not be imported."
                         }
 
-                        if (failed == 0 && moved > 0) {
+                        if (failed == 0 && moved > 0 && removeOriginals) {
                             runCatching { repo.requestOriginalDeletion(uris) }
                                 .onSuccess { intentSender ->
                                     if (intentSender != null) {
@@ -428,7 +461,7 @@ private fun VaultScreen(
                                 }
                         }
                     }
-                }) { Text("Move & Encrypt") }
+                }) { Text(if (removeOriginalsAfterImport) "Move & Encrypt" else "Copy & Encrypt") }
             },
             dismissButton = {
                 TextButton(onClick = {
