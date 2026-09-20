@@ -1,8 +1,23 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
+}
+
+val generateAwnishLogo by tasks.registering {
+    val source = file("src/main/assets/awnish_logo.webp.b64")
+    val output = layout.buildDirectory.dir("generated/res/awnishLogo")
+    inputs.file(source)
+    outputs.dir(output)
+    doLast {
+        val drawableDir = output.get().dir("drawable").asFile
+        drawableDir.mkdirs()
+        val logo = drawableDir.resolve("awnish_logo.webp")
+        logo.writeBytes(Base64.getDecoder().decode(source.readText().trim()))
+    }
 }
 
 android {
@@ -16,6 +31,8 @@ android {
         versionCode = 1
         versionName = "1.0"
     }
+
+    sourceSets["main"].res.srcDir("$buildDir/generated/res/awnishLogo")
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -34,6 +51,10 @@ android {
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(generateAwnishLogo)
 }
 
 dependencies {
