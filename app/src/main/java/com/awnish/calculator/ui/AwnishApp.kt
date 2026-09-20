@@ -195,6 +195,7 @@ private fun VaultScreen(
     val deleteOriginalLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
+        pickerActive = false
         if (result.resultCode == Activity.RESULT_OK) {
             info = "Original selected media removed from Gallery."
             error = null
@@ -414,6 +415,7 @@ private fun VaultScreen(
                             runCatching { repo.requestOriginalDeletion(uris) }
                                 .onSuccess { intentSender ->
                                     if (intentSender != null) {
+                                        pickerActive = true
                                         deleteOriginalLauncher.launch(
                                             IntentSenderRequest.Builder(intentSender).build()
                                         )
