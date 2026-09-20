@@ -179,6 +179,13 @@ fun CalculatorScreen(passwordHash: String, onVaultUnlock: () -> Unit, onChangePa
             }
         }
 
+        Button(
+            onClick = { calculate() },
+            modifier = Modifier.fillMaxWidth().height(52.dp)
+        ) {
+            Text("=", style = MaterialTheme.typography.titleLarge)
+        }
+
     }
 }
 
