@@ -179,7 +179,7 @@ private fun VaultScreen(
 
     val items by repo.photos(query, category).collectAsStateWithLifecycle(emptyList())
 
-    fun receiveSelectedUris(uris: List<Uri>) {
+    fun receiveSelectedUris(uris: List<Uri>, removeOriginals: Boolean = true) {
         pickerActive = false
         selectedUris = uris
         showMoveWarning = uris.isNotEmpty()
@@ -194,7 +194,7 @@ private fun VaultScreen(
     val filePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
-        receiveSelectedUris(uris, removeOriginals = true)
+        receiveSelectedUris(uris, true)
     }
 
     val folderPicker = rememberLauncherForActivityResult(
@@ -209,7 +209,7 @@ private fun VaultScreen(
                     error = it.message ?: "Could not read selected folder."
                     emptyList()
                 }
-                receiveSelectedUris(uris, removeOriginals = false)
+                receiveSelectedUris(uris, false)
                 if (uris.isNotEmpty()) {
                     info = "Found " + uris.size + " file(s) in the selected folder. Nothing will be deleted from the folder."
                 }
