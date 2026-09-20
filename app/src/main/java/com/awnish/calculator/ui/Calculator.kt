@@ -70,27 +70,99 @@ fun CalculatorScreen(passwordHash: String, onVaultUnlock: () -> Unit, onChangePa
         listOf("x²", "xʸ", "!", "π")
     )
     val numberKeys = listOf(
-        listOf("AC", "⌫", "(", ")"),
-        listOf("7", "8", "9", "÷"),
-        listOf("4", "5", "6", "×"),
-        listOf("1", "2", "3", "−"),
-        listOf("±", "0", ".", "+")
+        listOf("C", "⌫", "(", ")", "%", "÷"),
+        listOf("7", "8", "9", "×"),
+        listOf("4", "5", "6", "−"),
+        listOf("1", "2", "3", "+"),
+        listOf("±", "0", ".", "=")
     )
 
+    val background = Color(0xFFFAF7F8)
+    val numberColor = Color(0xFFC51F2A)
+    val operatorColor = Color(0xFF75611C)
+    val keyBackground = Color(0xFFF8EDEE)
+    val equalsBackground = Color(0xFF75611C)
+
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(7.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .background(background)
+            .systemBarsPadding()
+            .padding(horizontal = 18.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("AWNISH", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = { degrees = !degrees }) { Text(if (degrees) "DEG" else "RAD") }
-            TextButton(onClick = { historyOpen = !historyOpen }) { Text("History") }
+        Row(
+            modifier = Modifier.fillMaxWidth().height(42.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { historyOpen = !historyOpen }) {
+                Icon(Icons.Default.History, "History", tint = numberColor)
+            }
+            IconButton(onClick = { scientificOpen = !scientificOpen }) {
+                Icon(Icons.Default.Straighten, "Scientific tools", tint = numberColor)
+            }
+            IconButton(onClick = { scientificOpen = !scientificOpen }) {
+                Icon(Icons.Default.Calculate, "Scientific calculator", tint = numberColor)
+            }
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = { deleteLast() }) {
+                Icon(Icons.Default.Backspace, "Delete", tint = Color(0xFFB8AE89))
+            }
+        }
+
+        Divider(color = Color(0xFFE2DCDD), thickness = 1.dp)
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentAlignment = Alignment.BottomEnd
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (expression.isNotEmpty()) {
+                    Text(
+                        expression,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.End,
+                        style = MaterialTheme.typography.headlineSmall.copy(fontSize = 25.sp),
+                        color = Color(0xFF9A9292),
+                        maxLines = 2
+                    )
+                }
+                Text(
+                    result,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.End,
+                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 56.sp),
+                    color = operatorColor,
+                    maxLines = 2
+                )
+                error?.let {
+                    Text(
+                        it,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.End,
+                        color = MaterialTheme.colorScheme.error,
+                        maxLines = 2,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
         }
 
         if (historyOpen) {
-            Card(modifier = Modifier.fillMaxWidth().heightIn(max = 150.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 150.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFC))
+            ) {
                 if (history.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No calculations yet") }
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No calculations yet", color = Color(0xFF8D8585))
+                    }
                 } else {
                     LazyColumn(Modifier.padding(8.dp)) {
                         items(history) { item ->
@@ -109,28 +181,47 @@ fun CalculatorScreen(passwordHash: String, onVaultUnlock: () -> Unit, onChangePa
             }
         }
 
-        Spacer(Modifier.weight(1f))
-        Text(expression.ifEmpty { "0" }, Modifier.fillMaxWidth(), textAlign = TextAlign.End, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3)
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            AnimatedContent(targetState = result, modifier = Modifier.weight(1f), label = "calculator_result") { value ->
-                Text(value, Modifier.fillMaxWidth(), textAlign = TextAlign.End, style = MaterialTheme.typography.displaySmall.copy(fontSize = 40.sp), maxLines = 2)
-            }
-            IconButton(onClick = { clip.setText(AnnotatedString(result)) }) { Icon(Icons.Default.ContentCopy, "Copy result") }
-        }
-        error?.let { Text(it, Modifier.fillMaxWidth(), textAlign = TextAlign.End, color = MaterialTheme.colorScheme.error, maxLines = 2) }
+        Divider(color = Color(0xFFE2DCDD), thickness = 1.dp)
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { scientificOpen = !scientificOpen }, modifier = Modifier.weight(1f)) {
-                Text(if (scientificOpen) "Scientific  ↑" else "Scientific  ↓")
+        Row(
+            modifier = Modifier.fillMaxWidth().height(42.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = if (!scientificOpen) keyBackground else Color.Transparent,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    "Basic",
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
+                    textAlign = TextAlign.Center,
+                    color = numberColor,
+                    style = MaterialTheme.typography.titleMedium
+                )
             }
-            OutlinedButton(onClick = {
-                if (result != "0" || lastAnswer != 0.0) { expression = "ans"; error = null }
-            }, modifier = Modifier.weight(1f)) { Text("Ans") }
+            TextButton(
+                onClick = { scientificOpen = !scientificOpen },
+                modifier = Modifier.weight(1.35f)
+            ) {
+                Text(
+                    if (scientificOpen) "Scientific  ↑" else "Scientific  ↓",
+                    color = Color(0xFF77706A),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+            VerticalDivider(modifier = Modifier.height(24.dp), color = Color(0xFFD8D2D2))
+            TextButton(
+                onClick = { degrees = !degrees },
+                modifier = Modifier.weight(.7f)
+            ) {
+                Text(if (degrees) "DEG" else "RAD", color = operatorColor)
+            }
         }
 
         if (scientificOpen) {
             scientificKeys.forEach { row ->
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     row.forEach { key ->
                         FilledTonalButton(
                             onClick = {
@@ -145,49 +236,65 @@ fun CalculatorScreen(passwordHash: String, onVaultUnlock: () -> Unit, onChangePa
                                     else -> append(key)
                                 }
                             },
-                            modifier = Modifier.weight(1f).height(42.dp)
+                            modifier = Modifier.weight(1f).height(40.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = keyBackground,
+                                contentColor = operatorColor
+                            )
                         ) { Text(key, style = MaterialTheme.typography.labelLarge) }
                     }
                 }
             }
         }
 
-        numberKeys.forEach { row ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        numberKeys.forEachIndexed { rowIndex, row ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 row.forEach { key ->
+                    val isEquals = key == "="
+                    val isOperator = key in setOf("%", "÷", "×", "−", "+")
+                    val isClear = key == "C"
+                    val keyColor = when {
+                        isEquals -> Color.White
+                        isClear -> numberColor
+                        isOperator -> operatorColor
+                        else -> numberColor
+                    }
                     FilledTonalButton(
                         onClick = {
                             when (key) {
-                                "AC" -> clearAll()
+                                "C" -> clearAll()
                                 "⌫" -> deleteLast()
                                 "±" -> if (expression.isBlank()) append("-") else append("(-1)*")
                                 "=" -> calculate()
-                                else -> append(when (key) {
-                                    "×" -> "*"
-                                    "÷" -> "/"
-                                    "−" -> "-"
-                                    else -> key
-                                })
+                                "%" -> append("%")
+                                else -> append(
+                                    when (key) {
+                                        "×" -> "*"
+                                        "÷" -> "/"
+                                        "−" -> "-"
+                                        else -> key
+                                    }
+                                )
                             }
                         },
-                        modifier = Modifier.weight(1f).heightIn(min = 50.dp)
+                        modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(1f),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = if (isEquals) equalsBackground else keyBackground,
+                            contentColor = keyColor
+                        )
                     ) {
                         if (key == "⌫") Icon(Icons.Default.Backspace, "Backspace")
-                        else Text(key, style = MaterialTheme.typography.titleMedium)
+                        else Text(key, style = MaterialTheme.typography.headlineSmall.copy(fontSize = 30.sp))
                     }
                 }
             }
         }
-
-        Button(
-            onClick = { calculate() },
-            modifier = Modifier.fillMaxWidth().height(52.dp)
-        ) {
-            Text("=", style = MaterialTheme.typography.titleLarge)
-        }
-
     }
 }
+
 
 private class ExpressionParser(
     private val source: String,
