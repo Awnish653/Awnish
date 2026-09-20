@@ -43,7 +43,7 @@ interface PhotoDao {
     suspend fun delete(photo: PhotoEntity)
 }
 
-private val MIGRATION_1_2 = object : Migration(1, 2) {
+private val GALLERY_MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE photos ADD COLUMN category TEXT NOT NULL DEFAULT 'Photos'")
         db.execSQL("ALTER TABLE photos ADD COLUMN originalUri TEXT")
@@ -54,6 +54,6 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
 abstract class GalleryDatabase : RoomDatabase() {
     abstract fun photos(): PhotoDao
     companion object {
-        val MIGRATION_1_2 = MIGRATION_1_2
+        val MIGRATION_1_2 = GALLERY_MIGRATION_1_2
     }
 }
