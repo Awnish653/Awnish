@@ -76,7 +76,7 @@ fun CalculatorScreen(passwordHash: String, onVaultUnlock: () -> Unit, onChangePa
         listOf("x²", "xʸ", "!", "π")
     )
     val numberKeys = listOf(
-        listOf("C", "(", ")", "%"),
+        listOf("C", "()", "%", "÷"),
         listOf("7", "8", "9", "×",),
         listOf("4", "5", "6", "−"),
         listOf("1", "2", "3", "+"),
