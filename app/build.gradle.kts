@@ -57,6 +57,12 @@ tasks.named("preBuild").configure {
     dependsOn(generateAwnishLogo)
 }
 
+tasks.matching {
+    it.name.startsWith("merge") && it.name.endsWith("Resources")
+}.configureEach {
+    dependsOn(generateAwnishLogo)
+}
+
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.core:core-ktx:1.15.0")
