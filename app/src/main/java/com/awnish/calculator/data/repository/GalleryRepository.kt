@@ -36,6 +36,56 @@ class GalleryRepository(private val context: Context) {
     fun photos(query: String, category: String = "All"): Flow<List<PhotoEntity>> =
         dao.observe(query, category)
 
+    suspend fun collectTreeFiles(treeUri: Uri, maxFiles: Int = 500): List<Uri> =
+        withContext(Dispatchers.IO) {
+            val result = mutableListOf<Uri>()
+            val resolver = context.contentResolver
+
+            fun walk(parentUri: Uri) {
+                if (result.size >= maxFiles) return
+                val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+                    treeUri,
+                    DocumentsContract.getTreeDocumentId(treeUri)
+                )
+                // For nested folders, this URI must be built from the current document id.
+                val queryUri = if (parentUri == treeUri) {
+                    childrenUri
+                } else {
+                    DocumentsContract.buildChildDocumentsUriUsingTree(
+                        treeUri,
+                        DocumentsContract.getDocumentId(parentUri)
+                    )
+                }
+
+                resolver.query(
+                    queryUri,
+                    arrayOf(
+                        DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                        DocumentsContract.Document.COLUMN_MIME_TYPE
+                    ),
+                    null,
+                    null,
+                    null
+                )?.use { cursor ->
+                    val idColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                    val mimeColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
+                    while (cursor.moveToNext() && result.size < maxFiles) {
+                        val id = cursor.getString(idColumn)
+                        val mime = cursor.getString(mimeColumn)
+                        val child = DocumentsContract.buildDocumentUriUsingTree(treeUri, id)
+                        if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
+                            walk(child)
+                        } else {
+                            result += child
+                        }
+                    }
+                }
+            }
+
+            walk(treeUri)
+            result
+        }
+
     suspend fun import(uri: Uri, removeOriginal: Boolean = false) = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
         val name = resolver.query(
