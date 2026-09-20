@@ -74,7 +74,7 @@ fun CalculatorScreen(passwordHash: String, onVaultUnlock: () -> Unit, onChangePa
         listOf("7", "8", "9", "÷"),
         listOf("4", "5", "6", "×"),
         listOf("1", "2", "3", "−"),
-        listOf("±", "0", ".", "=")
+        listOf("±", "0", ".", "+")
     )
 
     Column(
@@ -179,9 +179,6 @@ fun CalculatorScreen(passwordHash: String, onVaultUnlock: () -> Unit, onChangePa
             }
         }
 
-        Button(onClick = { calculate() }, modifier = Modifier.fillMaxWidth().height(54.dp)) {
-            Text("=", style = MaterialTheme.typography.titleLarge)
-        }
     }
 }
 
