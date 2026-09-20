@@ -1,7 +1,6 @@
 package com.awnish.calculator.data.repository
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
@@ -16,6 +15,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.util.UUID
 
 class GalleryRepository(private val context: Context) {
@@ -28,6 +29,7 @@ class GalleryRepository(private val context: Context) {
     private val dao = database.photos()
     private val cipher = GalleryCipher()
     private val directory = File(context.filesDir, "private_gallery").apply { mkdirs() }
+    private val openDirectory = File(context.cacheDir, "vault_open").apply { mkdirs() }
 
     fun photos(query: String, category: String = "All"): Flow<List<PhotoEntity>> =
         dao.observe(query, category)
@@ -46,14 +48,27 @@ class GalleryRepository(private val context: Context) {
 
         val type = resolver.getType(uri) ?: mimeFromName(name)
         val category = categoryFor(type, name)
-        val raw = resolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: error("Unable to read selected file")
-
         val id = UUID.randomUUID().toString()
         val file = File(directory, "$id.awn")
 
         try {
-            file.writeBytes(cipher.encrypt(raw))
+            val input = resolver.openInputStream(uri) ?: error("Unable to read selected file")
+            input.use { source ->
+                FileOutputStream(file).use { target ->
+                    cipher.encrypt(source, target)
+                }
+            }
+
+            val size = resolver.query(
+                uri,
+                arrayOf(OpenableColumns.SIZE),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else file.length()
+            } ?: file.length()
+
             dao.insert(
                 PhotoEntity(
                     id = id,
@@ -62,7 +77,7 @@ class GalleryRepository(private val context: Context) {
                     album = category,
                     category = category,
                     createdAt = System.currentTimeMillis(),
-                    sizeBytes = raw.size.toLong(),
+                    sizeBytes = size,
                     path = file.name,
                     originalUri = uri.toString()
                 )
@@ -81,24 +96,42 @@ class GalleryRepository(private val context: Context) {
 
     suspend fun bytes(item: PhotoEntity): ByteArray =
         withContext(Dispatchers.IO) {
-            cipher.decrypt(File(directory, item.path).readBytes())
+            val output = java.io.ByteArrayOutputStream()
+            FileInputStream(File(directory, item.path)).use { input ->
+                cipher.decrypt(input, output)
+            }
+            output.toByteArray()
         }
 
-    fun fileUri(item: PhotoEntity): Uri =
-        FileProvider.getUriForFile(
-            context,
-            context.packageName + ".fileprovider",
-            File(directory, item.path)
-        )
+    suspend fun prepareOpenUri(item: PhotoEntity): Uri = withContext(Dispatchers.IO) {
+        cleanupOpenCache()
+        val safeName = item.displayName.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val temp = File(openDirectory, UUID.randomUUID().toString() + "_" + safeName)
+        try {
+            FileInputStream(File(directory, item.path)).use { input ->
+                FileOutputStream(temp).use { output ->
+                    cipher.decrypt(input, output)
+                }
+            }
+            FileProvider.getUriForFile(
+                context,
+                context.packageName + ".fileprovider",
+                temp
+            )
+        } catch (e: Exception) {
+            temp.delete()
+            throw e
+        }
+    }
 
     suspend fun export(item: PhotoEntity): Uri = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
         val values = android.content.ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, item.displayName)
-            put(MediaStore.Downloads.MIME_TYPE, item.mimeType)
+            put(MediaStore.MediaColumns.DISPLAY_NAME, item.displayName)
+            put(MediaStore.MediaColumns.MIME_TYPE, item.mimeType)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.Downloads.RELATIVE_PATH, "Download/AWNISH Vault")
-                put(MediaStore.Downloads.IS_PENDING, 1)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "Download/AWNISH Vault")
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
         }
 
@@ -110,12 +143,17 @@ class GalleryRepository(private val context: Context) {
 
         val uri = resolver.insert(collection, values) ?: error("Unable to create export")
         try {
-            resolver.openOutputStream(uri)?.use { it.write(bytes(item)) }
-                ?: error("Unable to export file")
+            FileInputStream(File(directory, item.path)).use { input ->
+                resolver.openOutputStream(uri)?.use { output ->
+                    cipher.decrypt(input, output)
+                } ?: error("Unable to export file")
+            }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                values.clear()
-                values.put(MediaStore.Downloads.IS_PENDING, 0)
-                resolver.update(uri, values, null, null)
+                val completed = android.content.ContentValues().apply {
+                    put(MediaStore.MediaColumns.IS_PENDING, 0)
+                }
+                resolver.update(uri, completed, null, null)
             }
             uri
         } catch (e: Exception) {
@@ -132,6 +170,13 @@ class GalleryRepository(private val context: Context) {
             File(directory, item.path).delete()
             dao.delete(item)
         }
+
+    private fun cleanupOpenCache() {
+        val cutoff = System.currentTimeMillis() - 10 * 60 * 1000L
+        openDirectory.listFiles()?.forEach { file ->
+            if (file.lastModified() < cutoff) file.delete()
+        }
+    }
 
     private fun deleteOriginal(uri: Uri): Boolean {
         return runCatching {
