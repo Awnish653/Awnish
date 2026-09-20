@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,7 +32,13 @@ import kotlin.math.*
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun CalculatorScreen(passwordHash: String, onVaultUnlock: () -> Unit, onChangePassword: () -> Unit) {
+fun CalculatorScreen(
+    passwordHash: String,
+    onVaultUnlock: () -> Unit,
+    onChangePassword: () -> Unit,
+    launcherIconVisible: Boolean,
+    onSetLauncherIconVisible: (Boolean) -> Unit
+) {
     var expression by rememberSaveable { mutableStateOf("") }
     var result by rememberSaveable { mutableStateOf("0") }
     var lastAnswer by rememberSaveable { mutableStateOf(0.0) }
@@ -111,6 +118,33 @@ fun CalculatorScreen(passwordHash: String, onVaultUnlock: () -> Unit, onChangePa
                 Icon(Icons.Default.Calculate, "Scientific calculator", tint = numberColor)
             }
             Spacer(Modifier.weight(1f))
+            var appMenuOpen by remember { mutableStateOf(false) }
+            Box {
+                IconButton(onClick = { appMenuOpen = true }) {
+                    Icon(Icons.Default.MoreVert, "App options", tint = Color(0xFFB8AE89))
+                }
+                DropdownMenu(
+                    expanded = appMenuOpen,
+                    onDismissRequest = { appMenuOpen = false }
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(if (launcherIconVisible) "Hide app from launcher" else "Show app in launcher")
+                        },
+                        onClick = {
+                            appMenuOpen = false
+                            onSetLauncherIconVisible(!launcherIconVisible)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Change vault password") },
+                        onClick = {
+                            appMenuOpen = false
+                            onChangePassword()
+                        }
+                    )
+                }
+            }
             IconButton(onClick = { deleteLast() }) {
                 Icon(Icons.Default.Backspace, "Delete", tint = Color(0xFFB8AE89))
             }
