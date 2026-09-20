@@ -213,8 +213,8 @@ private fun VaultScreen(
     DisposableEffect(activity) {
         val observer = object : androidx.lifecycle.DefaultLifecycleObserver {
             override fun onStop(owner: androidx.lifecycle.LifecycleOwner) {
-                if (!pickerActive && incomingUris.isEmpty()) {
-                    // Lock the vault only when the user actually leaves AWNISH.
+                if (!pickerActive) {
+                    onClose()
                 }
             }
         }
