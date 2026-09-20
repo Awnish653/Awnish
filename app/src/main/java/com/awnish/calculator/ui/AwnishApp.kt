@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
-import androidx.activity.compose.PickVisualMediaRequest
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -176,12 +176,14 @@ private fun VaultScreen(
     var selectedUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var showMoveWarning by remember { mutableStateOf(false) }
     var pickerActive by remember { mutableStateOf(false) }
+    var removeOriginalsAfterImport by remember { mutableStateOf(true) }
 
     val items by repo.photos(query, category).collectAsStateWithLifecycle(emptyList())
 
     fun receiveSelectedUris(uris: List<Uri>, removeOriginals: Boolean = true) {
         pickerActive = false
         selectedUris = uris
+        removeOriginalsAfterImport = removeOriginals
         showMoveWarning = uris.isNotEmpty()
     }
 
@@ -425,7 +427,6 @@ private fun VaultScreen(
                     selectedUris = emptyList()
                     scope.launch {
                         var moved = 0
-                        var copiedOnly = 0
                         var failed = 0
 
                         uris.forEach { uri ->
