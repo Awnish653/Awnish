@@ -273,6 +273,10 @@ fun CalculatorScreen(passwordHash: String, onVaultUnlock: () -> Unit, onChangePa
                                 "±" -> if (expression.isBlank()) append("-") else append("(-1)*")
                                 "=" -> calculate()
                                 "%" -> append("%")
+                                "()" -> {
+                                    if (expression.lastOrNull()?.isDigit() == true || expression.endsWith(")")) append(")")
+                                    else append("(")
+                                }
                                 else -> append(
                                     when (key) {
                                         "×" -> "*"
