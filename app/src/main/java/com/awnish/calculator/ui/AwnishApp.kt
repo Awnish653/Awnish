@@ -11,6 +11,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -203,13 +205,13 @@ private fun VaultScreen(
         )
 
         val categories = listOf("All", "Photos", "Videos", "Documents", "Apps & Games", "Others")
-        Row(
-            Modifier
+        LazyRow(
+            modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            categories.forEach { item ->
+            items(categories) { item ->
                 FilterChip(
                     selected = category == item,
                     onClick = { category = item },
